@@ -34,7 +34,7 @@
 $ git clone https://github.com/Black-knight-P/k-cafe-hw.git
 $ cd k-cafe-hw
 $ ./gradlew clean build
-$ java -jar build/libs/kakaopay-cafe-hw-0.0.1-SNAPSHOT.jar
+$ java -jar ./build/libs/pretest-0.0.1-SNAPSHOT.jar
 ```
 
 - 접속 Base URI: `http://localhost:8080`
