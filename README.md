@@ -95,8 +95,8 @@ GET /api/search/local?query={query} HTTP/1.1
 ]
 ```
 
-- [LocalSearchController.java](http://LocalSearchController.java)
 
+- LocalSearchController.java
 ```java
 @Slf4j
 @RequiredArgsConstructor
@@ -106,7 +106,7 @@ public class LocalSearchController {
     private final SearchService searchService;
     private final RankService rankService;
 
-		// 검색어 조회 횟수 증가 처리를 위한 Event Publisher
+    // 검색어 조회 횟수 증가 처리를 위한 Event Publisher
     private final QueryEventPublisher queryEventPublisher;
 
     @GetMapping("/api/search/local")
@@ -117,9 +117,9 @@ public class LocalSearchController {
 	...중략
 }
 ```
-
 - 검색 API 호출과 검색 조회수 처리의 결합도를 낮추기 위해 ApplicationEventPublisher로 이벤트 처리
 - QueryEvent를 발행하여, 검색 서비스와는 별도의 Thread로 Redis에 스코어링한다.
+
 
 - LocalSearchEngine (Interface)
 
@@ -128,10 +128,10 @@ public interface LocalSearchEngine {
     Mono<? extends KeywordSearchResponse> search(final String query);
 }
 ```
+- 확장과 유지 보수를 위해 KeywordSearchResponse 를 상속 받은 객체로 리턴 타입을 강제 하였다.
 
-- 확장과 유지 보수를 위해 KeywordSeachResponse 를 상속 받은 객체로 리턴 타입을 강제 하였다.
 
-- KakaoLocalSeachEngine.java (Implements)
+- KakaoLocalSearchEngine.java (Implements)
 
 ```java
 @Slf4j
@@ -172,12 +172,11 @@ public class KakaoLocalSearchEngine implements LocalSearchEngine {
 
 }
 ```
-
 - 검색 Engine은 WebClient Liberary를 활용하여, 비동기로 외부 Api를 호출하고, 결과가 돌아올 Mono 객체를 Return 한다.
 - 4xx, 5xx Error 발생시 비어있는 결과가 담겨있는 Mono 객체를 Return하여 전체 서비스에 지장이 없도록 구현하였다.
 
-- [SearchService.java](http://SearchService.java) (외부 API 비동기 호출)
 
+- SearchService.java
 ```java
 @Slf4j
 @RequiredArgsConstructor
@@ -208,12 +207,11 @@ public class SearchService {
 	...중략
 }
 ```
-
 - LocalSearchEngine의 Impl들을 통해 비동기로 호출된 API들을 해당 서비스의 결과를 Merge한다.
 - 반응성과 효율성을 위해 @Cacheable을 활용하였다. (TTL 60초)
 
-- [SearchService.java](http://SearchService.java) (Api 결과 처리)
 
+- SearchService.java
 ```java
 @Slf4j
 @RequiredArgsConstructor
@@ -314,10 +312,10 @@ public class SearchService {
 ```
 
 - Stream API와 여러 자료구조를 활용하여, 주어진 요건에 맞게 결과를 리턴하는 Method를 개발하였다.
-- 구현의 상세 내용은 Code내 주석으로 대체한다.
+- 구현의 상세 내용은 Code 내 주석으로 대체한다.
 
-- [Result.java](http://Result.java) API 결과를 처리하기 위한 공통 객체
 
+- Result.java API 결과를 처리하기 위한 공통 객체
 ```java
 @Data
 @AllArgsConstructor
@@ -386,16 +384,17 @@ public class Result {
 
 }
 ```
-
 - Item의 equals와 hashCode를 Override하여, Stream API의 distinct()와 Set과 Map을 통한 중복 제거를 용이하게 구현하였다.
 - 검색 결과의 일치 여부는 주소 정보를 일부 정제하여, 일치 여부로 판단하였다.
+
+
 
 ### 2. 검색 키워드 목록 API
 
 - 해결 전략
     - 검색 조회수는 빈번한 Update를 사용하기 때문에 rdb는 사용하지 않았다.
-    - 물론 일괄로 조회수를 Count했다가 Update하는 방법도 있지만 동시성과 실시간 정확성을 염두하였다.
-    - Redis 의 ZSET 은 Sorted Set 이라는 자료 구조 형태를 구현한 기능을 활용하여 구현하였다.
+    - 일괄로 조회수를 Count했다가 Rdb에 Update하는 방법도 있지만 동시성과 실시간 정확성을 염두하였다.
+    - Redis의 Sorted Set 자료 구조를 활용하여 구현하였다.
     - 대량의 데이터가 들어갈 경우 입력시에 느려질 수 있으나 비동기 Event Listener를 활용하여 별도 Thread로 처리하여 입력시 느리다는 단점을 상쇄하였고, 조회시 매우 빠르다는 장점만을 활용하였다.
 
 - Request
