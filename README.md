@@ -19,10 +19,10 @@
 - Application
     - JAVA 11
     - Spring boot 2.7.1
+    - WebClient
     - Redis (Embedded)
     - Gradle
     - Junit5
-    - WebClient
 
 ## 빌드 및 실행 방법
 
