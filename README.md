@@ -445,7 +445,7 @@ public class RankService {
     private final RedisTemplate<String, Object> redisTemplate;
     private final String REDIS_QUERY_RANKING_KEY = "QUERY:RANKING";
 
-		public List<RankingDto> getRanking() {
+    public List<RankingDto> getRanking() {
         // ZSet Operation reverseRangeWithScores을 통해 검색어 상위 10개를 구한다.
         final var typedTuples = redisTemplate.opsForZSet()
                 .reverseRangeWithScores(REDIS_QUERY_RANKING_KEY, 0, 9);
@@ -504,7 +504,7 @@ public class RankService {
             // 검색어를 value 에 저장하고, score 를  +1
             redisTemplate.opsForZSet().incrementScore(REDIS_QUERY_RANKING_KEY, query,1);
         } catch (Exception e) {
-						// 별도 재처리 프로세스 구현?
+            // 별도 재처리 프로세스 구현?
             log.error("REDIS QUERY RANKING_KEY ERROR {} ", e.getMessage());
         }
     }
@@ -548,10 +548,10 @@ public class RankService {
 2. cURL 
     
     ```bash
-    # 검색 API 
+    # 장소 검색 서비스 API
     curl -G -X GET 'http://localhost:8080/api/search/local' --data-urlencode 'query=곱창'
     
-    # 검색어 순위 API 
+    # 검색 키워드 목록 API 
     curl -X GET 'http://localhost:8080/api/search/local/ranking'
     ```
 3. 통합 테스트 코드 실행은 Embedded Redis Config 영향으로 Windows PC 에서는 불가능 하다.
