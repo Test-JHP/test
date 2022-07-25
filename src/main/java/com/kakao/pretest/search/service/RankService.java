@@ -37,7 +37,7 @@ public class RankService {
         try {
             redisTemplate.opsForZSet().incrementScore(REDIS_QUERY_RANKING_KEY, query,1);
         } catch (Exception e) {
-            log.error("REDIS QUERY RANKING_KEY ERROR {} ", e.getMessage());
+            log.error("REDIS ERROR QUERY : {}, MESSAGE : {} ", query, e.getMessage());
         }
     }
 }

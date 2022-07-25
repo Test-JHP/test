@@ -1,6 +1,5 @@
 package com.kakao.pretest.search.service;
 
-import com.kakao.pretest.search.dto.KeywordSearchResponse;
 import com.kakao.pretest.search.dto.Result;
 import com.kakao.pretest.search.engine.LocalSearchEngine;
 import lombok.RequiredArgsConstructor;
@@ -30,17 +29,14 @@ public class SearchService {
                 .map(localSearchEngine -> localSearchEngine.search(query))
                 .collect(Collectors.toList());
 
-        // Mono.zip Method 를 통해 비동기 호출 결과들를 Merge 한다.
-        final var blockOptional =
-                Mono.zip(monoList, objects -> Arrays.stream(objects)
-                        .map(o -> (KeywordSearchResponse) o)
-                        .map(KeywordSearchResponse::toResult)
-                        .collect(Collectors.toList()))
+        // API 처리 결과 집계
+        final var block = Mono.zip(monoList, objects -> Arrays.stream(objects)
+                .map(o -> (Result) o)
+                .collect(Collectors.toList()))
                 .blockOptional();
 
         // API 명세에 맞도록 결과 Return Method
-        return blockOptional.map(this::makeSearchApiResponse)
-                .orElse(Collections.emptyList());
+        return block.map(this::makeSearchApiResponse).orElse(Collections.emptyList());
     }
 
     /**
