@@ -10,6 +10,12 @@ GET http://localhost:8080/api/search/local?query=라면
 ### 검색 API 호출 (검색어 : 곱창)
 GET http://localhost:8080/api/search/local?query=박지호
 
+### 검색 API 호출 에러 응답 (400)
+GET http://localhost:8080/api/search/local?query=
+
+### 검색 API 호출 에러 응답 (400)
+GET http://localhost:8080/api/search/local
+
 ### 검색 키워드 목록 API
 GET http://localhost:8080/api/search/local/ranking
 

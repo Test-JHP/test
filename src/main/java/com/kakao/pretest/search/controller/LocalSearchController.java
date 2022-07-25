@@ -27,7 +27,7 @@ public class LocalSearchController {
     private final QueryEventPublisher queryEventPublisher;
 
     @GetMapping("/api/search/local")
-    public List<String> searchLocalKeyword(
+    public List<String> search(
             @Valid @NotBlank @RequestParam(value = "query") final String query) {
         queryEventPublisher.publishEvent(query); // 조회수 증가 처리를 위한 Event 발행
         return searchService.searchKeyword(query);
