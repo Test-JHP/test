@@ -1,10 +1,7 @@
-package com.kakao.pretest.search.data.dto;
+package com.kakao.pretest.search.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayList;
@@ -12,20 +9,17 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @Slf4j
-@Builder
-@AllArgsConstructor
-@NoArgsConstructor
-@Data
-public class KakaoKeywordSearchResponse implements KeywordSearchResponse {
+@ToString
+public class NaverKeywordSearchResponse implements KeywordSearchResponse {
 
-    @JsonProperty("documents")
+    @JsonProperty
     private List<Item> items;
 
-    @Data
+    @ToString
     public static class Item {
-        @JsonProperty("place_name")
+        @JsonProperty
         private String title;
-        @JsonProperty("address_name")
+        @JsonProperty
         private String address;
     }
 
@@ -36,8 +30,8 @@ public class KakaoKeywordSearchResponse implements KeywordSearchResponse {
 
         List<Result.Item> resultList = items.stream()
                 .map(item -> Result.Item.builder()
-                        .engineType("KAKAO")
-                        .priority(1)
+                        .engineType("NAVER")
+                        .priority(2)
                         .title(item.title)
                         .address(item.address)
                         .build())
@@ -51,5 +45,5 @@ public class KakaoKeywordSearchResponse implements KeywordSearchResponse {
                 .itemList(resultList)
                 .build();
     }
-
 }
+

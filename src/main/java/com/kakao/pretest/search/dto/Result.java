@@ -1,27 +1,27 @@
-package com.kakao.pretest.search.data.dto;
+package com.kakao.pretest.search.dto;
 
 import com.kakao.pretest.global.utils.AddressUtils;
 import com.kakao.pretest.global.utils.StringUtils;
-import lombok.AllArgsConstructor;
 import lombok.Builder;
-import lombok.Data;
+import lombok.Getter;
+import lombok.ToString;
 
 import java.util.List;
 
-@Data
-@AllArgsConstructor
+@Getter
 @Builder
 public class Result {
 
-    private List<Item> itemList;
+    private final List<Item> itemList;
 
-    @Data
+    @ToString
+    @Getter
     public static class Item {
 
-        private String engineType;
-        private int priority;
-        private String title;
-        private String address;
+        private final String engineType;
+        private final int priority;
+        private final String title;
+        private final String address;
 
         @Builder
         public Item (String engineType, int priority, String title, String address) {
@@ -33,7 +33,7 @@ public class Result {
 
         /**
          * 일치 여부 확인
-         * 1. 공백 제거 후, 주소 Hash 값 비교
+         * 공백 제거 후, 주소 Hash 값 비교
          */
         @Override
         public boolean equals(Object o) {
@@ -61,15 +61,12 @@ public class Result {
     }
 
     public String getEngineInfo() {
-        if (itemList.size() == 0) return "NONE";
+        if (itemList == null || itemList.size() == 0) return "NONE";
         return itemList.iterator().next().engineType;
     }
 
-    /**
-     * 내부 Item 의 우선 순위 Return
-     */
     public int getPriority() {
-        if (itemList.size() == 0) return Integer.MAX_VALUE;
+        if (itemList == null || itemList.size() == 0) return Integer.MAX_VALUE;
         return itemList.iterator().next().priority;
     }
 

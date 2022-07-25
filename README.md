@@ -208,7 +208,7 @@ public class SearchService {
 }
 ```
 - LocalSearchEngine의 Impl들을 통해 비동기로 호출된 API들을 해당 서비스의 결과를 Merge한다.
-- 반응성과 효율성을 위해 @Cacheable을 활용하였다. (TTL 60초)
+- 반응성과 효율성을 위해 @Cacheable을 활용하였다.
 
 
 - SearchService.java

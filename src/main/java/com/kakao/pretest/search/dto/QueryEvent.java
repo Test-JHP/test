@@ -1,4 +1,4 @@
-package com.kakao.pretest.search.data.dto;
+package com.kakao.pretest.search.dto;
 
 import lombok.Builder;
 import lombok.Data;

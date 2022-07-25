@@ -1,10 +1,10 @@
 package com.kakao.pretest.search.service;
 
-import com.kakao.pretest.search.data.KakaoLocalSearchEngine;
-import com.kakao.pretest.search.data.LocalSearchEngine;
-import com.kakao.pretest.search.data.NaverLocalSearchEngine;
-import com.kakao.pretest.search.data.dto.KakaoKeywordSearchResponse;
-import com.kakao.pretest.search.data.dto.NaverKeywordSearchResponse;
+import com.kakao.pretest.search.engine.impl.KakaoLocalSearchEngine;
+import com.kakao.pretest.search.engine.LocalSearchEngine;
+import com.kakao.pretest.search.engine.impl.NaverLocalSearchEngine;
+import com.kakao.pretest.search.dto.KakaoKeywordSearchResponse;
+import com.kakao.pretest.search.dto.NaverKeywordSearchResponse;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -51,9 +51,13 @@ public class SearchServiceTest {
         ReflectionTestUtils.setField(kakaoItem4, "title", "D 곱창");
         ReflectionTestUtils.setField(kakaoItem4, "address", "D 곱창");
 
-        KakaoKeywordSearchResponse kakaoKeywordSearchResponse = KakaoKeywordSearchResponse.builder()
-                .items(List.of(kakaoItem1, kakaoItem2, kakaoItem3, kakaoItem4))
-                .build();
+
+        KakaoKeywordSearchResponse kakaoKeywordSearchResponse = new KakaoKeywordSearchResponse();
+        ReflectionTestUtils.setField(kakaoKeywordSearchResponse, "items", List.of(kakaoItem1, kakaoItem2, kakaoItem3, kakaoItem4));
+
+//        KakaoKeywordSearchResponse kakaoKeywordSearchResponse = KakaoKeywordSearchResponse.builder()
+//                .items(List.of(kakaoItem1, kakaoItem2, kakaoItem3, kakaoItem4))
+//                .build();
 
         NaverKeywordSearchResponse.Item naverItem1 = new NaverKeywordSearchResponse.Item();
         NaverKeywordSearchResponse.Item naverItem2 = new NaverKeywordSearchResponse.Item();
@@ -69,9 +73,10 @@ public class SearchServiceTest {
         ReflectionTestUtils.setField(naverItem4, "title", "C 곱창");
         ReflectionTestUtils.setField(naverItem4, "address", "C 곱창");
 
-        NaverKeywordSearchResponse naverKeywordSearchResponse = NaverKeywordSearchResponse.builder()
-                .items(List.of(naverItem1, naverItem2, naverItem3, naverItem4))
-                .build();
+        ReflectionTestUtils.setField(kakaoItem4, "items", List.of(kakaoItem1, kakaoItem2, kakaoItem3, kakaoItem4));
+
+        NaverKeywordSearchResponse naverKeywordSearchResponse = new NaverKeywordSearchResponse();
+        ReflectionTestUtils.setField(kakaoKeywordSearchResponse, "items", List.of(naverItem1, naverItem2, naverItem3, naverItem4));
 
         //mocking
         when(localSearchEngineList.stream()).thenReturn(List.of(kakaoLocalSearchEngine, naverLocalSearchEngine).stream());
@@ -112,9 +117,10 @@ public class SearchServiceTest {
         ReflectionTestUtils.setField(kakaoItem5, "title", "새마을금고");
         ReflectionTestUtils.setField(kakaoItem5, "address", "새마을금고");
 
-        KakaoKeywordSearchResponse kakaoKeywordSearchResponse = KakaoKeywordSearchResponse.builder()
-                .items(List.of(kakaoItem1, kakaoItem2, kakaoItem3, kakaoItem4, kakaoItem5))
-                .build();
+        KakaoKeywordSearchResponse kakaoKeywordSearchResponse = new KakaoKeywordSearchResponse();
+        ReflectionTestUtils.setField(kakaoKeywordSearchResponse, "items",
+                List.of(kakaoItem1, kakaoItem2, kakaoItem3, kakaoItem4, kakaoItem5));
+
 
         NaverKeywordSearchResponse.Item naverItem1 = new NaverKeywordSearchResponse.Item();
         NaverKeywordSearchResponse.Item naverItem2 = new NaverKeywordSearchResponse.Item();
@@ -133,9 +139,10 @@ public class SearchServiceTest {
         ReflectionTestUtils.setField(naverItem5, "title", "기업은행");
         ReflectionTestUtils.setField(naverItem5, "address", "기업은행");
 
-        NaverKeywordSearchResponse naverKeywordSearchResponse = NaverKeywordSearchResponse.builder()
-                .items(List.of(naverItem1, naverItem2, naverItem3, naverItem4, naverItem5))
-                .build();
+        NaverKeywordSearchResponse naverKeywordSearchResponse = new NaverKeywordSearchResponse();
+        ReflectionTestUtils.setField(kakaoKeywordSearchResponse, "items",
+                List.of(naverItem1, naverItem2, naverItem3, naverItem4, naverItem5));
+
 
         //mocking
         when(localSearchEngineList.stream()).thenReturn(List.of(kakaoLocalSearchEngine, naverLocalSearchEngine).stream());

@@ -1,6 +1,6 @@
-package com.kakao.pretest.search.data;
+package com.kakao.pretest.search.event;
 
-import com.kakao.pretest.search.data.dto.QueryEvent;
+import com.kakao.pretest.search.dto.QueryEvent;
 import com.kakao.pretest.search.service.RankService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

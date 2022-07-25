@@ -1,6 +1,6 @@
-package com.kakao.pretest.search.data;
+package com.kakao.pretest.search.engine;
 
-import com.kakao.pretest.search.data.dto.KeywordSearchResponse;
+import com.kakao.pretest.search.dto.KeywordSearchResponse;
 import reactor.core.publisher.Mono;
 
 public interface LocalSearchEngine {

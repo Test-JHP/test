@@ -1,6 +1,7 @@
-package com.kakao.pretest.search.data;
+package com.kakao.pretest.search.engine.impl;
 
-import com.kakao.pretest.search.data.dto.KakaoKeywordSearchResponse;
+import com.kakao.pretest.search.dto.KakaoKeywordSearchResponse;
+import com.kakao.pretest.search.engine.LocalSearchEngine;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -39,7 +40,7 @@ public class KakaoLocalSearchEngine implements LocalSearchEngine {
                 .bodyToMono(KakaoKeywordSearchResponse.class)
                 .doOnSuccess(kakaoKeywordSearchResponse -> log.debug("Complete API : {}", kakaoKeywordSearchResponse))
                 .doOnError(throwable -> log.error("{}", throwable.getMessage()))
-                .onErrorReturn(KakaoKeywordSearchResponse.builder().build()) // 에러 발생시, Empty Mono<KeywordSearchResponse> 리턴
+                .onErrorReturn(new KakaoKeywordSearchResponse()) // 에러 발생시, Empty Mono<KeywordSearchResponse> 리턴
                 ;
     }
 
