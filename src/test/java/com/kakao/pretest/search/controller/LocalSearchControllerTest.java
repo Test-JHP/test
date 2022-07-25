@@ -10,6 +10,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.hamcrest.core.Is.is;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -37,14 +38,14 @@ public class LocalSearchControllerTest {
             rankService.increaseCount("은행");
 
         mvc.perform(
-                get("/api/search/local/ranking"))
+                get("/api/query/ranking"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.[0].query").value("은행"))
-                .andExpect(jsonPath("$.[0].count").value(30))
-                .andExpect(jsonPath("$.[1].query").value("곱창"))
-                .andExpect(jsonPath("$.[1].count").value(20))
-                .andExpect(jsonPath("$.[2].query").value("박지호"))
-                .andExpect(jsonPath("$.[2].count").value(10))
+                .andExpect(jsonPath("$.[0].query", is("은행")))
+                .andExpect(jsonPath("$.[0].count", is(30)))
+                .andExpect(jsonPath("$.[1].query", is("곱창")))
+                .andExpect(jsonPath("$.[1].count", is(20)))
+                .andExpect(jsonPath("$.[2].query", is("박지호")))
+                .andExpect(jsonPath("$.[2].count", is(10)));
         ;
     }
 
