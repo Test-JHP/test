@@ -1,9 +1,10 @@
 package com.kakao.pretest.search.dto;
 
 import lombok.Builder;
-import lombok.Data;
+import lombok.Getter;
+import lombok.ToString;
 
-@Data
+@Getter
 @Builder
 public class QueryEvent {
     private final String query;

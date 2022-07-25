@@ -18,7 +18,7 @@ public class QueryEventListener {
     @Async
     @EventListener
     public void queryEventListener(final QueryEvent queryEvent) {
-        log.debug("Increase Query Count : {} ", queryEvent);
+        log.debug("Increase Query Count : {} ", queryEvent.getQuery());
         rankService.increaseCount(queryEvent.getQuery());
     }
 

@@ -65,8 +65,8 @@ public class NaverLocalSearchEngine implements LocalSearchEngine {
         }
         List<Result.Item> resultList = response.getItems().stream()
                 .map(item -> Result.Item.builder()
-                        .engineType("NAVER")
-                        .priority(2)
+                        .engineType(ENGINE_TYPE)
+                        .priority(priority)
                         .title(item.getTitle())
                         .address(item.getAddress())
                         .build())
