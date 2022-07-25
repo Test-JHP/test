@@ -22,5 +22,4 @@ public class QueryEventListener {
         rankService.increaseCount(queryEvent.getQuery());
     }
 
-
 }

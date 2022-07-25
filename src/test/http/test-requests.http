@@ -17,5 +17,5 @@ GET http://localhost:8080/api/search/local?query=
 GET http://localhost:8080/api/search/local
 
 ### 검색 키워드 목록 API
-GET http://localhost:8080/api/search/local/ranking
+GET http://localhost:8080/api/query/ranking
 

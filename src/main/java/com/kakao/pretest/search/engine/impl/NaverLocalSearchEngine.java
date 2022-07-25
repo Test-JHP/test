@@ -52,7 +52,7 @@ public class NaverLocalSearchEngine implements LocalSearchEngine {
                 .doOnSuccess(naverKeywordSearchResponse ->  log.debug("Complete API : {}", naverKeywordSearchResponse))
                 .doOnError(throwable -> log.error("{}", throwable.getMessage()))
                 .onErrorReturn(new NaverKeywordSearchResponse()) // 에러 발생시, Empty Mono<KeywordSearchResponse> 리턴
-                .flatMap(this::mapToResult)
+                .flatMap(this::mapToResult)                      // 결과 매핑 처리
                 ;
     }
 

@@ -49,7 +49,7 @@ public class KakaoLocalSearchEngine implements LocalSearchEngine {
                 .doOnSuccess(kakaoKeywordSearchResponse -> log.debug("Complete API : {}", kakaoKeywordSearchResponse))
                 .doOnError(throwable -> log.error("{}", throwable.getMessage()))
                 .onErrorReturn(new KakaoKeywordSearchResponse()) // 에러 발생시, Empty Mono<KeywordSearchResponse> 리턴
-                .flatMap(this::mapToResult)
+                .flatMap(this::mapToResult)                      // 결과 매핑 처리
                 ;
     }
 

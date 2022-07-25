@@ -33,10 +33,9 @@ public class LocalSearchController {
         return searchService.searchKeyword(query);
     }
 
-    @GetMapping("/api/search/local/ranking")
-    public List<Ranking> getQueryRanking() {
+    @GetMapping("/api/query/ranking")
+    public List<Ranking> getRanking() {
         return rankService.getRanking();
     }
-
 
 }

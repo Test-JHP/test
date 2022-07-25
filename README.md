@@ -14,12 +14,12 @@
 
 - 기본 환경
     - IDE : IntelliJ IDEA Ultimate Ver.
-    - OS :  macOS
+    - OS : macOS
     - GIT
 - Application
     - JAVA 11
     - Spring boot 2.7.1
-    - WebClient
+    - WebClient (Asynchronous & Non-blocking I/O)
     - Redis (Embedded)
     - Gradle
     - Junit5
@@ -31,8 +31,8 @@
 - java, git 은 설치 되어 있어야 한다.
 
 ```bash
-$ git clone https://github.com/Black-knight-P/k-cafe-hw.git
-$ cd k-cafe-hw
+$ git clone https://github.com/TEST/test.git
+$ cd test
 $ ./gradlew clean build
 $ java -jar ./build/libs/pretest-0.0.1-SNAPSHOT.jar
 ```
@@ -67,10 +67,9 @@ $ java -jar ./build/libs/pretest-0.0.1-SNAPSHOT.jar
 ### 1. 장소 검색 서비스 API
 
 - 해결 전략
-    - 독립적인 N개의 외부 API를 호출 해야 되므로, Spring Webflux 기반 WebClient Library를 활용하여, 비동기로 구현하였다.
-    - Google 및 기타 외부 API 추가 요건에 개발 공수를 최소화 하기 위해 Api 처리 Engine을 추상화 하여 기존 소스 수정 없이 새로운 코드 추가만으로 구현하였다.
+    - 독립적인 N개의 외부 API를 호출 해야 되므로 Spring Webflux 기반 WebClient Library를 활용하여 응답 처리 시간을 최적화하였다.
+    - Google 및 기타 외부 API 추가 요건에 개발 공수를 최소화 하기 위해 API 처리 엔진을 추상화 하여 기존 소스 수정 없이 새로운 코드 추가 만으로 확장할 수 있도록 구현하였다.
     - 검색어 횟수 처리 기능과의 결합도를 낮추기 위해 ApplicationEventPublisher로 Event를 발행하여 별도의 Thread에서 검색어 횟수에 대한 증가 처리로 구현하였다.
-
 - Request
 
 ```bash
@@ -95,10 +94,11 @@ GET /api/search/local?query={query} HTTP/1.1
 ]
 ```
 
-
 - LocalSearchController.java
+
 ```java
 @Slf4j
+@Validated
 @RequiredArgsConstructor
 @RestController
 public class LocalSearchController {
@@ -106,30 +106,35 @@ public class LocalSearchController {
     private final SearchService searchService;
     private final RankService rankService;
 
-    // 검색어 조회 횟수 증가 처리를 위한 Event Publisher
     private final QueryEventPublisher queryEventPublisher;
 
     @GetMapping("/api/search/local")
-    public List<String> searchLocalKeyword(@RequestParam(value = "query") final String query) {
-        queryEventPublisher.publishEvent(query); // 조회수 증가 처리를 위한 Event 발행 
+    public List<String> search(
+            @Valid @NotBlank @RequestParam(value = "query") final String query) {
+        queryEventPublisher.publishEvent(query); // 조회수 증가 처리를 위한 Event 발행
         return searchService.searchKeyword(query);
     }
-	...중략
+
+    @GetMapping("/api/query/ranking")
+    public List<Ranking> getRanking() {
+        return rankService.getRanking();
+    }
+
 }
 ```
-- 검색 API 호출과 검색 조회수 처리의 결합도를 낮추기 위해 ApplicationEventPublisher로 이벤트 처리
-- QueryEvent를 발행하여, 검색 서비스와는 별도의 Thread로 Redis에 스코어링한다.
 
+- 검색 API 호출과 검색 조회수 처리의 결합도를 낮추기 위해 이벤트처리로 개발 하였다.
+- QueryEvent를 발행하여, 검색 서비스와는 별도의 Thread로 Redis를 통해 스코어링 한다.
 
 - LocalSearchEngine (Interface)
 
 ```java
 public interface LocalSearchEngine {
-    Mono<? extends KeywordSearchResponse> search(final String query);
+    Mono<Result> search(final String query);
 }
 ```
-- 확장과 유지 보수를 위해 KeywordSearchResponse 를 상속 받은 객체로 리턴 타입을 강제 하였다.
 
+- 확장과 유지 보수를 검색 API 엔진을 추상화 하였다.
 
 - KakaoLocalSearchEngine.java (Implements)
 
@@ -141,6 +146,9 @@ public class KakaoLocalSearchEngine implements LocalSearchEngine {
     private final String KAKAO_ACCESS_KEY;
     private final WebClient webClient;
 
+    private final String ENGINE_TYPE = "KAKAO";
+    private final int priority = 1;
+
     public KakaoLocalSearchEngine (@Value("${kakao-access-key}") String kakaoAccessKey,
                                    WebClient webClient) {
         this.KAKAO_ACCESS_KEY = kakaoAccessKey;
@@ -148,7 +156,7 @@ public class KakaoLocalSearchEngine implements LocalSearchEngine {
     }
 
     @Override
-    public Mono<KakaoKeywordSearchResponse> search(final String query) {
+    public Mono<Result> search(final String query) {
         log.debug("Start Search {}", this.getClass());
         return webClient.get()
                 .uri(uriBuilder -> uriBuilder
@@ -166,87 +174,106 @@ public class KakaoLocalSearchEngine implements LocalSearchEngine {
                 .bodyToMono(KakaoKeywordSearchResponse.class)
                 .doOnSuccess(kakaoKeywordSearchResponse -> log.debug("Complete API : {}", kakaoKeywordSearchResponse))
                 .doOnError(throwable -> log.error("{}", throwable.getMessage()))
-                .onErrorReturn(KakaoKeywordSearchResponse.builder().build()) // 에러 발생시, Empty Mono<KeywordSearchResponse> 리턴
+                .onErrorReturn(new KakaoKeywordSearchResponse()) // 에러 발생시, Empty Mono<KeywordSearchResponse> 리턴
+                .flatMap(this::mapToResult)                      // 결과 매핑 처리
                 ;
     }
 
+    private Mono<Result> mapToResult(final KakaoKeywordSearchResponse response) {
+
+        if (response == null || response.getItems() == null) {
+            return Mono.just(Result.builder()
+                    .itemList(Collections.emptyList())
+                    .build());
+        }
+        List<Result.Item> resultList = response.getItems().stream()
+                .map(item -> Result.Item.builder()
+                        .engineType(ENGINE_TYPE)
+                        .priority(priority)
+                        .title(item.getTitle())
+                        .address(item.getAddress())
+                        .build())
+                .collect(Collectors.toList());
+
+        if (log.isDebugEnabled()) {
+            resultList.forEach(result -> log.debug("{}", result));
+        }
+
+        return Mono.just(Result.builder()
+                .itemList(resultList)
+                .build());
+    }
 }
 ```
-- 검색 Engine은 WebClient Liberary를 활용하여, 비동기로 외부 Api를 호출하고, 결과가 돌아올 Mono 객체를 Return 한다.
-- 4xx, 5xx Error 발생시 비어있는 결과가 담겨있는 Mono 객체를 Return하여 전체 서비스에 지장이 없도록 구현하였다.
 
+- 검색 API 엔진은 WebClient Liberary를 활용하여, 비동기로 외부 Api를 호출하고, 결과가 돌아올 Mono 객체를 Return 한다.
+- 4xx, 5xx Error 발생시 비어있는 결과가 담겨있는 Mono 객체를 Return하여 전체 서비스에 지장이 없도록 구현하였다.
+- API 처리 후, 데이터 핸들링을 위한 결과 매핑은 내부 Private 메소드로 구현하였다.
 
 - SearchService.java
+
 ```java
 @Slf4j
 @RequiredArgsConstructor
 @Service
 public class SearchService {
 
-    // Bean 으로 등록된 LocalSearchEngine의 구현체들을 DI
-    private final List<LocalSearchEngine> localSearchEngineList; 
+    // Bean 으로 등록된 LocalSearchEngine 구현체들을 DI
+    private final List<LocalSearchEngine> localSearchEngineList;
+
+    private final int MAX_OUTPUT_COUNT = 5; // 검색 기준 갯수, 해당 갯수에 따라 출력이 조정 된다.
 
     @Cacheable("QueryKeyword")
     public List<String> searchKeyword(final String query) {
+
         // 비동기로 외부 API 호출 처리
         final var monoList = localSearchEngineList.stream()
                 .map(localSearchEngine -> localSearchEngine.search(query))
                 .collect(Collectors.toList());
 
-				// Mono.zip Method 를 통해 비동기 호출 결과들을 Merge 한다.
-        final var optionalResults = Mono.zip(monoList,
-                objects -> Arrays.stream(objects)
-                        .map(o -> (KeywordSearchResponse) o)
-                        .map(KeywordSearchResponse::toResult)
-                        .collect(Collectors.toList()))
+        // API 처리 결과 집계
+        final var block = Mono.zip(monoList, objects -> Arrays.stream(objects)
+                .map(o -> (Result) o)
+                .collect(Collectors.toList()))
                 .blockOptional();
 
-				// API 명세에 맞도록 결과 Return Method
-        return optionalResults.map(this::makeSearchApiResponse).orElse(Collections.emptyList());
+        // API 명세에 맞도록 결과 Return Method
+        return block.map(this::makeSearchApiResponse).orElse(Collections.emptyList());
     }
-	...중략
+   ...
 }
 ```
-- LocalSearchEngine의 Impl들을 통해 비동기로 호출된 API들을 해당 서비스의 결과를 Merge한다.
+
+- LocalSearchEngine의 Impl들을 통해 비동기 Non-Blocking API들을 Stream을 통해 일괄로 호출한다.
+- Mono.zip Method를 이용하여, 비동기 API 처리 결과를 처리한다. (Join)
 - 반응성과 효율성을 위해 @Cacheable을 활용하였다.
 
-
 - SearchService.java
+
 ```java
 @Slf4j
 @RequiredArgsConstructor
 @Service
 public class SearchService {
+        ...
+  
+        private List<String> makeSearchApiResponse(final List<Result> resultList) {
 
-    // Bean 으로 등록된 LocalSearchEngine의 구현체들을 DI
-    private final List<LocalSearchEngine> localSearchEngineList;
-
-		...중략
-	 
-    private List<String> makeSearchApiResponse(final List<Result> resultList) {
-
-        final int maxItemCount = 5; // 검색 기준 갯수, 해당 갯수에 따라 출력이 조정 된다.
-
+        // 엔진 우선순위 정렬
         final var results = resultList.stream()
-                .sorted(Comparator.comparingInt(Result::getPriority)) // 엔진 우선순위 정렬
+                .sorted(Comparator.comparingInt(Result::getPriority))
                 .collect(Collectors.toList());
 
         // 검색 기준 갯수(5개) 를 초과해서 조회된 결과들 중 남은 것들을 Queue 에 저장.
-        var remainderManagementQueue = results.stream()
-                .filter(result -> result.getItemCount() > maxItemCount) // 기준 갯수 초과 필터링
-                .map(result -> Result.builder()
-                        .itemList(result.getItemList().subList(maxItemCount, result.getItemList().size()))
-                        .build())
-                .flatMap(result -> result.getItemList().stream())
-                .collect(Collectors.toCollection(LinkedList::new));  // 출력 순서 보장을 위해 Queue 에 그대로 넣는다.
+        var remainderManagementQueue = makeRemainderQueue(results);
 
         // 특정 서비스가 기준 갯수 이하 일때, 최대한 기준 갯수를 맞추는 로직
         var preprocessingMap = new HashMap<String, List<Result.Item>>(); // 결과 처리를 위한 전처리 Map
         for(final var result : results) {
-            if (result.getItemCount() < maxItemCount) {  // 검색 갯수가 검색 기준 갯수(5개) 미만인 것들이 있다면,
+            if (result.getItemCount() < MAX_OUTPUT_COUNT) {  // 검색 갯수가 검색 기준 갯수(5개) 미만인 것들이 있다면,
                 preprocessingMap.put(result.getEngineInfo(), result.getItemList()); // 일단 결과 Map 에 넣는다.
                 if (remainderManagementQueue.isEmpty()) continue; // queue 가 비어있다면 부족한 갯수만큼 채워 줄 수가 없으므로 continue
-                int count = maxItemCount - result.getItemCount(); // 부족한 갯수만큼 Queue 에서 빼서 추가한다.
+                int count = MAX_OUTPUT_COUNT - result.getItemCount(); // 부족한 갯수만큼 Queue 에서 빼서 추가한다.
                 for (int i = 0; i < count; i++) {
                     if (remainderManagementQueue.isEmpty()) break; // queue 가 비어있다면 break
                     final var poll = remainderManagementQueue.poll();
@@ -261,22 +288,22 @@ public class SearchService {
             } else { // 검색 갯수가 검색 기준 갯수(5개)를 넘는다면, 기준 갯수 만큼 넣는다.
                 if (preprocessingMap.containsKey(result.getEngineInfo())) { // 위에 if 문에서 먼저 들어갔을 경우도 있으니 전처리 맵에 들어가 있는지 Check 한다.
                     var items = preprocessingMap.get(result.getEngineInfo());
-                    var resultItemList = result.getItemList().subList(0, maxItemCount);
+                    var resultItemList = result.getItemList().subList(0, MAX_OUTPUT_COUNT);
                     resultItemList.addAll(items); // 원래 넣을 item 을 앞에 넣는다.
                     preprocessingMap.put(result.getEngineInfo(), resultItemList);
                 } else { // 결과 맵에 포함되어있지 않는다면, 5개를 바로 넣는다.
-                    preprocessingMap.put(result.getEngineInfo(), result.getItemList().subList(0, maxItemCount));
+                    preprocessingMap.put(result.getEngineInfo(), result.getItemList().subList(0, MAX_OUTPUT_COUNT));
                 }
             }
         }
 
-        // 카카오 제외 나머지 Set (카카오 외에 중복은 따로 관리를 하지 않는다.)
+        // 카카오 제외 나머지는 순서 보장을 위해 Linked HashSet (카카오 외에 중복은 따로 관리를 하지 않는다.)
         var excludeKakaoSet = preprocessingMap.values()
                 .stream()
                 .filter(items -> !items.isEmpty())
                 .filter(items -> !"KAKAO".equals(items.iterator().next().getEngineType()))
                 .flatMap(Collection::stream)
-                .collect(Collectors.toSet());
+                .collect(Collectors.toCollection(LinkedHashSet::new));
 
         var completeList = new ArrayList<Result.Item>();    // 최종 결과 처리용 List
         final var kakaoItemList = preprocessingMap.get("KAKAO"); // 카카오 API 결과 내역
@@ -308,29 +335,40 @@ public class SearchService {
                 .map(Result.Item::getTitle)
                 .collect(Collectors.toList());
     }
+
+    // 검색 기준 갯수(5개) 를 초과해서 조회된 결과들 중 남은 것들을 관리 하는 Queue 를 생성한다.
+    private Queue<Result.Item> makeRemainderQueue(final List<Result> resultList) {
+        return resultList.stream()
+                .filter(result -> result.getItemCount() > MAX_OUTPUT_COUNT) // 기준 갯수 초과 필터링
+                .map(result -> Result.builder()
+                        .itemList(result.getItemList().subList(MAX_OUTPUT_COUNT, result.getItemList().size()))
+                        .build())
+                .flatMap(result -> result.getItemList().stream())
+                .collect(Collectors.toCollection(LinkedList::new));  // 출력 순서 보장을 위해 Queue 에 그대로 넣는다.
+    }
 }
 ```
 
-- Stream API와 여러 자료구조를 활용하여, 주어진 요건에 맞게 결과를 리턴하는 Method를 개발하였다.
-- 구현의 상세 내용은 Code 내 주석으로 대체한다.
+- Stream API와 여러 자료구조(Queue, Linked Hash Map 등)를 활용하여, 주어진 요건에 맞게 결과를 리턴하는 Method를 개발하였다.
+- 카카오 기준 응답 처리 알고리즘 구현은 Code 내 주석으로 대체한다.
 
+- Result.java
 
-- Result.java API 결과를 처리하기 위한 공통 객체
 ```java
-@Data
-@AllArgsConstructor
+@Getter
 @Builder
 public class Result {
 
-    private List<Item> itemList;
+    private final List<Item> itemList;
 
-    @Data
+    @ToString
+    @Getter
     public static class Item {
 
-        private String engineType;
-        private int priority;
-        private String title;
-        private String address;
+        private final String engineType;
+        private final int priority;
+        private final String title;
+        private final String address;
 
         @Builder
         public Item (String engineType, int priority, String title, String address) {
@@ -342,7 +380,7 @@ public class Result {
 
         /**
          * 일치 여부 확인
-         * 1. 공백 제거 후, 주소 Hash 값 비교
+         * 공백 제거 후, 주소 Hash 값 비교
          */
         @Override
         public boolean equals(Object o) {
@@ -370,33 +408,28 @@ public class Result {
     }
 
     public String getEngineInfo() {
-        if (itemList.size() == 0) return "NONE";
+        if (itemList == null || itemList.size() == 0) return "NONE";
         return itemList.iterator().next().engineType;
     }
 
-    /**
-     * 내부 Item 의 우선 순위 Return
-     */
     public int getPriority() {
-        if (itemList.size() == 0) return Integer.MAX_VALUE;
+        if (itemList == null || itemList.size() == 0) return Integer.MAX_VALUE;
         return itemList.iterator().next().priority;
     }
 
 }
 ```
+
 - Item의 equals와 hashCode를 Override하여, Stream API의 distinct()와 Set과 Map을 통한 중복 제거를 용이하게 구현하였다.
-- 검색 결과의 일치 여부는 주소 정보를 일부 정제하여, 일치 여부로 판단하였다.
-
-
+- 검색 결과의 일치 여부는 주소 정보를 일부 정제하여 일치 여부로 판단하였다.
 
 ### 2. 검색 키워드 목록 API
 
 - 해결 전략
-    - 검색 조회수는 빈번한 Update를 사용하기 때문에 rdb는 사용하지 않았다.
-    - 일괄로 조회수를 Count했다가 Rdb에 Update하는 방법도 있지만 동시성과 실시간 정확성을 염두하였다.
-    - Redis의 Sorted Set 자료 구조를 활용하여 구현하였다.
-    - 대량의 데이터가 들어갈 경우 입력시에 느려질 수 있으나 비동기 Event Listener를 활용하여 별도 Thread로 처리하여 입력시 느리다는 단점을 상쇄하였고, 조회시 매우 빠르다는 장점만을 활용하였다.
-
+    - 검색 조회수는 빈번한 Update를 사용하기 때문에 관계형 데이터베이스는 사용하지 않았다.
+    - 일괄로 조회 수를 Merge 했다가 RDB에 일괄 Update하는 방법도 있지만, 동시성과 실시간 정확성을 염두하였기에 Redis로 선택하게 되었다.
+    - 스코어링을 위해, Redis의 Sorted Set 자료 구조를 활용하여 구현하였다.
+    - 해당 자료구조는 데이터가 점점 쌓일 경우 입력 시에 느려질 수 있지만, 비동기 Event Listener를 사용해 입력 로직은 별도 Thread로 처리하여, 입력 시 느리다는 단점을 상쇄하였고 조회 시 매우 빠르다는 장점만을 활용하였다.
 - Request
 
 ```bash
@@ -404,7 +437,7 @@ http://localhost:8080/api/search/local/ranking
 ```
 
 ```bash
-GET /api/search/local/ranking HTTP/1.1 
+GET /api/search/local/ranking HTTP/1.1
 ```
 
 - Response
@@ -445,24 +478,25 @@ public class RankService {
     private final RedisTemplate<String, Object> redisTemplate;
     private final String REDIS_QUERY_RANKING_KEY = "QUERY:RANKING";
 
-    public List<RankingDto> getRanking() {
-        // ZSet Operation reverseRangeWithScores을 통해 검색어 상위 10개를 구한다.
-        final var typedTuples = redisTemplate.opsForZSet()
+    // ZSet Operation reverseRangeWithScores 통해 검색어 상위 10개를 구한다.
+    public List<Ranking> getRanking() {
+        final var tuples = redisTemplate.opsForZSet()
                 .reverseRangeWithScores(REDIS_QUERY_RANKING_KEY, 0, 9);
-        
-        return typedTuples != null ? typedTuples.stream()
-                .filter(objectTypedTuple -> objectTypedTuple.getScore() != null)
-                .map(objectTypedTuple -> RankingDto.builder()
-                        .query(String.valueOf(objectTypedTuple.getValue()))
-                        .count(objectTypedTuple.getScore().intValue())
+
+        return tuples != null ? tuples.stream()
+                .filter(tuple -> tuple.getScore() != null)
+                .map(tuple -> Ranking.builder()
+                        .query(String.valueOf(tuple.getValue()))
+                        .count(tuple.getScore().intValue())
                         .build())
                 .collect(Collectors.toList()) : Collections.emptyList();
     }
-	 ...중략
+    ...
 }
 ```
 
 - Redis zset 자료구조(Sorted set)에서 조회수 상위 10개를 가져와서 결과를 반환한다.
+- Sorted Set은 O(Log n) 시간 복잡도로 검색어 상위 10개 추출이 가능하다.
 
 - QueryEventListener.java
 
@@ -477,10 +511,10 @@ public class QueryEventListener {
     @Async
     @EventListener
     public void queryEventListener(final QueryEvent queryEvent) {
-        log.debug("Increase Query Count : {} ", queryEvent);
+        log.debug("Increase Query Count : {} ", queryEvent.getQuery());
         rankService.increaseCount(queryEvent.getQuery());
     }
-
+    
 }
 ```
 
@@ -497,61 +531,55 @@ public class RankService {
     private final RedisTemplate<String, Object> redisTemplate;
     private final String REDIS_QUERY_RANKING_KEY = "QUERY:RANKING";
 
-	  ... 중략
+    ... 
 
+    // 검색어를 value 에 저장하고, score +1
     public void increaseCount(final String query) {
         try {
-            // 검색어를 value 에 저장하고, score 를  +1
             redisTemplate.opsForZSet().incrementScore(REDIS_QUERY_RANKING_KEY, query,1);
         } catch (Exception e) {
-            // 별도 재처리 프로세스 구현?
-            log.error("REDIS QUERY RANKING_KEY ERROR {} ", e.getMessage());
+            log.error("REDIS ERROR QUERY : {}, MESSAGE : {} ", query, e.getMessage());
         }
     }
 }
 ```
 
 - redis ZSet 오퍼레이션을 활용하여, 검색 Query Key의 Score(Value)를 1증가 시킨다.
+- Sorted Set 자료구조는 입력된 데이터가 많아질 수록 느리다는 단점이 있지만, API 요청 처리와는 별도의 Thread로 동작하여 Low Latency를 유지되도록 구현하였다.
 
 ## 기술적 요구 사항 답변
 
 - 동시성 이슈가 발생할 수 있는 부분을 염두에 둔 설계 및 구현 (예시. 키워드 별로 검색된 횟수)
     - Single Thread 기반 Redis의 Atomic 보장을 활용해서 해당 이슈는 해결 하였다.
     - Sorted Set 자료 구조를 사용하여 O(Log n) 시간 복잡도로 검색어 상위 10개 추출이 가능하다.
-    
 - 카카오, 네이버 등 검색 API 제공자의 “다양한” 장애 발생 상황에 대한 고려
     - 두 API 호출이 서로 영향이 없도록 WebClient로 비동기로 호출 처리하였다.
     - WebClient에 API Error Handler를 추가하여 4xx,5xx 에러시 Empty 데이터를 반환하여 전체 로직은 흐르도록 처리 하였다.
-    
 - 구글 장소 검색 등 새로운 검색 API 제공자의 추가 시 변경 영역 최소화에 대한 고려
     - 추상화 된 LocalSeachEngine과 LocalSearchResponse를 Google API에 맞게 구현을 한다면, 기존 소스에는 변경 영역이 없이 기능 추가가 가능하다. LocalSearchEngine은 @Component 추가 하면 DI를 통해 SearchService에서 주입받아서 처리된다.
-    
 - 서비스 오류 및 장애 처리 방법에 대한 고려
     - Redis 장애시, 외부 API 호출에 대한 기능은 정상적으로 처리가 되도록 구현하였다.
     - 검색 횟수 처리는 Event Publisher와 Event Listener를 통해 별도의 비동기 Thread로 처리가 되므로 검색 서비스에는 영향이 없도록 구현되어있다.
     - 외부 API가 일부 장애 시 타 API의 정상처리에 영향이 없도록 독립적으로 처리되도록 구현하였다.
     - 다수의 비동기 호출에 대해서 Merge(Block) 처리시, 에러가 난 API에 대해서는 타 API의 결과로 보정되어 응답으로 처리한다.
-
 - 대용량 트래픽 처리를 위한 반응성(Low Latency), 확장성(Scalability), 가용성(Availability)을 높이기 위한 고려
     - 반응성 : Async IO 기반 Http Library 사용, Caching, Redis Sorted Set을 활용한 데이터 처리
     - 확장성 : 인스턴스 추가가 수평적으로 확장이 가능하다. (단, Embedded Redis는 변경하여야 한다.)
     - 가용성 : 검색 API의 경우, 외부 서버 및 Redis 서버의 장애에도 Request에 대한 정상 응답은 보장한다.
-  
 - 지속적 유지 보수 및 확장에 용이한 아키텍처에 대한 설계
     - 확장이 용이하도록 검색 엔진을 추상화하여 추가 엔진 구현만으로 기존 소스의 수정 없이 유연한 외부 API 추가 확장이 가능하도록 구현 하였다.
     - 통합 & 단위 테스트 코드를 작성하여, 지속적 유지 보수가 가능하도록 구성하였다.
-    
 
 ## 테스트 방법
 
 1. Project 내, src/test/http/test-requests.http 파일을 이용한 API 테스트
-2. cURL 
+2. cURL
     
     ```bash
     # 장소 검색 서비스 API
-    curl -G -X GET 'http://localhost:8080/api/search/local' --data-urlencode 'query=곱창'
-    
-    # 검색 키워드 목록 API 
-    curl -X GET 'http://localhost:8080/api/search/local/ranking'
+    $ curl -G -X GET 'http://localhost:8080/api/search/local' --data-urlencode 'query=곱창'
+    # 검색 키워드 목록 API
+    $ curl -X GET 'http://localhost:8080/api/query/ranking'
     ```
+    
 3. 통합 테스트 코드 실행은 Embedded Redis Config 영향으로 Windows PC 에서는 불가능 하다.
